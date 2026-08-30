@@ -576,8 +576,8 @@ h1 em{font-style:normal;color:var(--ember)}
 
   
   <button class="btn ghost" id="region-go">—</button>
-  <button class="btn" id="lab-go">도시 카두미르 — 거리로 나간다</button>
-  <p class="foot">미궁에선 HP·견딤이 걸음 사이에 이어져요 — 회복은 사건과 레벨업뿐.<br>첫 조우는 경험치 전량, 반복은 조금. 그림자는 전투를 건너 이어져요.</p>
+  <button class="btn" id="lab-go">거리로 나간다</button>
+  <p class="foot"><span id="sheet-foot-depth">—</span><br>첫 조우는 경험치 전량, 반복은 조금. 그림자는 전투를 건너 이어져요.</p>
 </section>
 
 
@@ -638,7 +638,7 @@ h1 em{font-style:normal;color:var(--ember)}
 
 <section class="screen" id="s-city">
   <div style="margin-top:26px;display:flex;justify-content:space-between;align-items:baseline">
-    <span class="over">도시 · 카두미르</span>
+    <span class="over" id="city-over">도시</span>
     <span style="font-size:12px;color:var(--ember);font-variant-numeric:tabular-nums" id="city-coins"></span>
   </div>
   <div class="labmap" style="text-align:center;margin-top:14px"><svg id="city-map"></svg></div>
@@ -702,7 +702,7 @@ h1 em{font-style:normal;color:var(--ember)}
 
 <section class="screen" id="s-field">
   <div style="margin-top:26px;display:flex;justify-content:space-between;align-items:baseline">
-    <span class="over">들녘 · 재의 들녘</span>
+    <span class="over" id="field-over">들녘</span>
     <span style="font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums" id="field-explored"></span>
   </div>
   <div class="pstat" style="border-top:none;padding-top:10px">
@@ -719,7 +719,7 @@ h1 em{font-style:normal;color:var(--ember)}
   <div class="stack" id="field-act"></div>
   <button class="btn ghost" id="field-cover">웅크려 잔다 — 덮인 밤</button>
   <button class="btn ghost" id="field-back">성문으로 돌아간다</button>
-  <p class="foot">밟은 칸에 붙은 자리만 걸을 수 있어요 — 안개는 걸어서 걷어요.<br>캔 자리는 미궁을 다녀오면 다시 돋아요.</p>
+  <p class="foot">밟은 칸에 붙은 자리만 걸을 수 있어요 — 안개는 걸어서 걷어요.<br><span id="field-foot-depth">—</span></p>
 </section>
 
 
@@ -2027,6 +2027,37 @@ function  splitPool(pool, active) {
   const live = [], reserved = [];
   for (const id of pool ?? []) (active.has(id) ? live : reserved).push(id);
   return { pool: live, reserved };
+}
+
+
+
+
+
+
+
+
+
+const  firstDeedOf = (floors, regionId) => {
+  const ds = (floors ?? []).filter((f) => f.regionId === regionId).map((f) => f.deed ?? f.index);
+  return ds.length ? Math.min(...ds) : null;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+function  depthGap(floors, regionId, walkedDeed) {
+  const first = firstDeedOf(floors, regionId);
+  if (first === null) return null;
+  const walked = Math.max(1, walkedDeed ?? 1);
+  return first > walked ? { first, walked, gap: first - walked } : null;
 }
 
 
@@ -10383,7 +10414,7 @@ function renderSheet(){
         if(s){equipSoul(hero,s);toast(`「${s.name}」 — 대기칸에서 올라온다.`);renderSheet();}
         
 
-        else toast(hero.standby.length?'조건이 맞지 않아요 — 이미 낀 것이거나, 칸이 없어요.':'빈 칸 — 영혼은 미궁에서 얻어요.');
+        else toast(hero.standby.length?'조건이 맞지 않아요 — 이미 낀 것이거나, 칸이 없어요.':rvoice('soulEmpty'));
       };}
     sl.appendChild(d);
   }
@@ -10422,6 +10453,13 @@ function renderSheet(){
   renderGearRow();   
   
   {const here=currentRegion(REGIONS,regionAt);$('#region-go').textContent=`${here?.name??'—'} — 다른 지역으로`;}
+  $('#sheet-foot-depth').textContent=rvoice('sheetFoot');   
+  
+
+
+
+
+  $('#lab-go').textContent=`도시 ${CITY.name} — 거리로 나간다`;
 
   const sk=$('#skill-list');sk.innerHTML='';
   
@@ -10497,7 +10535,7 @@ function renderSheet(){
     hands++;
     cr.insertAdjacentHTML('beforeend',`<div class="li"><span class="n">${def.name} · ${skillWord(def,s)}</span><span class="d">${SKILL_HINT[Math.min(3,skillTier(def,s))]}</span></div>`);
   }
-  if(career.runs===0&&!hands)cr.insertAdjacentHTML('beforeend','<div class="li"><span class="d">아직 아무 데도 가지 않았다 — 미궁이 기다린다</span></div>');
+  if(career.runs===0&&!hands)cr.insertAdjacentHTML('beforeend',`<div class="li"><span class="d">${rvoice('careerNone')}</span></div>`);
   if(career.runs>0){
     cr.insertAdjacentHTML('beforeend',`<div class="li"><span class="n">미궁 ${career.runs}번째 걸음</span><span class="d">가장 깊이 ${career.deepest}층까지</span></div>`);
     cr.insertAdjacentHTML('beforeend',`<div class="li"><span class="n">쓰러뜨린 것 ${career.kills}</span><span class="d">조우한 결 ${seen.size}종 — 첫 만남은 경험치 전량</span></div>`);
@@ -11010,7 +11048,7 @@ function startRun(sideDoor=false){
   run=began.run;lab=began.labyrinth;runHarvest=began.harvest;
   runStats={battles:0,souls:[],xp:0,shards:0,spirit:began.entryCost,descents:0};
   career.runs++;
-  renderLab(arriveAt('in.labyrinth')??'카두미르의 입이 벌어져 있다. 숨이 아래에서 올라온다.');
+  renderLab(arriveAt('in.labyrinth')??rvoice('arrive'));
   show('#s-lab');
 }
 
@@ -11025,7 +11063,7 @@ let leaveArmed=false;
 
 function leaveLabel(){
   const st=run.state();
-  if(st.canLeave)return '미궁을 떠난다 — 여기서 물러선다';
+  if(st.canLeave)return rvoice('leave');
   const stones=escapeStones(hero,st.deed);
   return stones.length?`돌아가는 돌을 깬다 — ${stones[0].g.name}(${stones[0].g.grade})`
                       :'나갈 수 없다 — 숨구멍을 찾거나 층의 끝까지';
@@ -11153,7 +11191,7 @@ function renderMap(st){
   const line=trailPts.map((p,i)=>i?`Q ${(trailPts[i-1][0]+p[0])/2} ${(trailPts[i-1][1]+p[1])/2-5}, ${p[0]} ${p[1]}`:`M${p[0]} ${p[1]}`).join(' ');
   svg.innerHTML=bg+`<path d="${line}" fill="none" stroke="var(--ember-soft)" stroke-width="1.1" opacity=".65"/>`+edges+out
     +`<text x="10" y="${CY-14}" font-size="8" letter-spacing="1.5" fill="var(--faint)">입구</text>`
-    +`<text x="${W/2}" y="${H-4}" text-anchor="middle" font-size="8.5" letter-spacing="2" fill="var(--faint)">지나온 길만 남는다 — 미궁은 살아 있다</text>`;
+    +`<text x="${W/2}" y="${H-4}" text-anchor="middle" font-size="8.5" letter-spacing="2" fill="var(--faint)">${rvoice('mapFoot')}</text>`;
   const box=svg.parentElement;if(box)box.scrollLeft=Math.max(0,X0+(boss?steps.length:cur)*COL-box.clientWidth+80);
 }
 
@@ -11842,7 +11880,7 @@ function showSummary(kind){
 
 
 
-  $('#le-over').textContent=kind==='clear'?'미궁의 바닥':'미궁의 기록';
+  $('#le-over').textContent=kind==='clear'?rvoice('endClear'):rvoice('endLog');
   $('#le-title').innerHTML=kind==='clear'?'걸어서, <em>바닥까지</em>'
     :kind==='dead'?'어둠이 <em>먼저였다</em>':'물러섰다 — <em>살아서</em>';
   $('#le-shadow').textContent=lastShadowWord||'그림자는 아직 침묵하고 있다.';
@@ -11850,7 +11888,7 @@ function showSummary(kind){
   $('#le-battles').textContent=`${runStats.battles}회`;
   $('#le-xp').textContent=`+${runStats.xp}`;
   const el=$('#le-souls');el.innerHTML='';
-  if(runStats.souls.length===0&&!runStats.shards)el.innerHTML='<div class="li"><span class="d">빈손 — 미궁은 쉽게 내주지 않는다</span></div>';
+  if(runStats.souls.length===0&&!runStats.shards)el.innerHTML=`<div class="li"><span class="d">${rvoice('endEmpty')}</span></div>`;
   runStats.souls.forEach(n=>el.insertAdjacentHTML('beforeend',
     `<div class="li"><span class="n"${kind==='dead'?' style="opacity:.45;text-decoration:line-through"':''}>${n}</span></div>`));
   if(runStats.shards>0)el.insertAdjacentHTML('beforeend',`<div class="li"><span class="n" style="color:var(--sp)${kind==='dead'?';opacity:.45;text-decoration:line-through':''}">가루 +${runStats.shards}</span><span class="d">중복된 결의 잔해 — 살아 있는 결을 지우는 데 든다고 한다</span></div>`);
@@ -11991,6 +12029,44 @@ function enterCity(){ensureLife();announceGearOpenings();renderCity();show('#s-c
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+const depthGapAt=id=>depthGap(DATA_FLOORS,id,hero?.deepestFloor);
+
+
+
+
+
+
+
+
+
+
+const deedOfFloor=n=>{
+  const f=DATA_FLOORS.find(x=>x.index===n);
+  if(!f)throw new Error(`층 index ${n}이 data/floors.m0.json에 없다 — 화면이 「몇 층」을 말하려면 그 층의 deed가 있어야 한다`);
+  return f.deed;
+};
+const depthWords=id=>{const g=depthGapAt(id);
+  return g?`아래로 드는 길이 ${g.first}층에서 시작한다 — 지금까지 ${g.walked}층 아래로 내려간 적이 없다.`:'';};
+
+const depthLine=id=>{const w=depthWords(id);return w?`<div class="ln" style="color:var(--ember)">${w}</div>`:'';};
+
+
+
+
+
+
+
 function renderRegion(){
   const cur=currentRegion(REGIONS,regionAt);
   $('#rg-title').textContent=cur?.name??'—';
@@ -12004,14 +12080,45 @@ function renderRegion(){
       continue;
     }
     const b=document.createElement('button');b.className='card act';b.type='button';b.setAttribute('data-k','go');
-    b.innerHTML=`<h3>${r.name}</h3><div class="ln">${r.lore?.text??''}</div>`;
+    b.innerHTML=`<h3>${r.name}</h3><div class="ln">${r.lore?.text??''}</div>`+depthLine(r.id);
     b.onclick=()=>{travelTo(r.id);renderRegion();};
     el.appendChild(b);
   }
 }
 function enterRegion(){renderRegion();show('#s-region');}
 $('#region-go').onclick=enterRegion;
-$('#rg-back').onclick=()=>show('#s-sheet');
+
+
+
+
+
+
+
+$('#rg-back').onclick=()=>goSheet();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12042,10 +12149,66 @@ $('#rg-back').onclick=()=>show('#s-sheet');
 
 const DEPTHS={
   kadumir_region:{where:'미궁 · 카두운의 숨',
-    n:'문으로 들어간다',t:'미궁',ln:'카두운의 숨. 돌아오는 것이 일이다.'},
+    n:'문으로 들어간다',t:'미궁',ln:'카두운의 숨. 돌아오는 것이 일이다.',
+    sheetFoot:'미궁에선 HP·견딤이 걸음 사이에 이어져요 — 회복은 사건과 레벨업뿐.',
+    fieldFoot:'캔 자리는 미궁을 다녀오면 다시 돋아요.',
+    soulEmpty:'빈 칸 — 영혼은 미궁에서 얻어요.',
+    careerNone:'아직 아무 데도 가지 않았다 — 미궁이 기다린다',
+    leave:'미궁을 떠난다 — 여기서 물러선다',
+    endClear:'미궁의 바닥',endLog:'미궁의 기록',
+    endEmpty:'빈손 — 미궁은 쉽게 내주지 않는다',
+    gathered:'이 자리는 이미 캤다 — 미궁을 다녀오면 다시 돋는다.',
+    stockOut:'오늘 몫은 나갔다. 미궁에 다녀오면 다시 들어온다.',
+    mealFull:w=>`배가 부르다 — ${w}. 미궁 한 번 동안 이어진다.`,
+    aging:n=>`덮어두었다 — 미궁을 ${n}번 더 다녀오면 다 삭는다.`,
+    sidedoorFound:f=>`재 밑에 좁은 문이 있다 — 미궁 ${f}층으로 바로 이어진다. 도시의 「문」에서 쓸 수 있다.`,
+    marketRefresh:n=>`구하는 사람이 바뀌기까지 미궁 <b>${n}번</b>. 사람에게 넘기면 좌판보다 훨씬 비싸요.`,
+    
+    arrive:'카두미르의 입이 벌어져 있다. 숨이 아래에서 올라온다.',
+    mapFoot:'지나온 길만 남는다 — 미궁은 살아 있다',
+    sidedoorShut:'문틀은 그대로인데 틈이 닫혀 있다. 한 번 지난 문은 미궁이 몇 번 숨을 쉬어야 다시 열린다.'},
   ordun_region:{where:'저기 · 눌린 재가 끊긴 데',
-    n:'끊긴 데로 내려간다',t:'저기',ln:'검게 가라앉은 띠가 여기서 끊긴다. 돌아오는 것이 일이다.'},
+    n:'끊긴 데로 내려간다',t:'저기',ln:'검게 가라앉은 띠가 여기서 끊긴다. 돌아오는 것이 일이다.',
+    sheetFoot:'저기에선 HP·견딤이 걸음 사이에 이어져요 — 회복은 사건과 레벨업뿐.',
+    fieldFoot:'캔 자리는 저기를 다녀오면 다시 돋아요.',
+    soulEmpty:'빈 칸 — 영혼은 저기에서 얻어요.',
+    careerNone:'아직 아무 데도 가지 않았다 — 저기가 기다린다',
+    leave:'저기를 떠난다 — 여기서 물러선다',
+    endClear:'저기의 바닥',endLog:'저기의 기록',
+    endEmpty:'빈손 — 저기는 쉽게 내주지 않는다',
+    gathered:'이 자리는 이미 캤다 — 저기를 다녀오면 다시 돋는다.',
+    stockOut:'오늘 몫은 나갔다. 저기에 다녀오면 다시 들어온다.',
+    mealFull:w=>`배가 부르다 — ${w}. 저기 한 번 동안 이어진다.`,
+    aging:n=>`덮어두었다 — 저기를 ${n}번 더 다녀오면 다 삭는다.`,
+    sidedoorFound:f=>`재 밑에 좁은 문이 있다 — 저기 ${f}층으로 바로 이어진다. 도시의 「문」에서 쓸 수 있다.`,
+    marketRefresh:n=>`구하는 사람이 바뀌기까지 저기 <b>${n}번</b>. 사람에게 넘기면 좌판보다 훨씬 비싸요.`,
+    
+
+    arrive:'눌린 재가 여기서 끊긴다. 아래는 조용하다.',
+    mapFoot:'지나온 길만 남는다 — 저기는 덮여 있었다',
+    sidedoorShut:'문틀은 그대로인데 틈이 닫혀 있다. 한 번 지난 문은 저기를 몇 번 더 다녀와야 다시 열린다.'},
 };
+
+
+const rvoice=k=>{
+  const d=DEPTHS[regionAt];
+  if(!d)throw new Error(`지역 「${regionAt}」의 지하 문면이 DEPTHS에 없다 — 부팅 검사(바로 아래)가 이미 막았어야 한다`);
+  const v=d[k];
+  if(v===undefined)throw new Error(`지역 「${regionAt}」의 지하 문면에 「${k}」 칸이 없다 — ui/app.html DEPTHS에 그 줄을 적을 것`);
+  return v;
+};
+
+
+
+{
+  const keys=[...new Set(Object.values(DEPTHS).flatMap(d=>Object.keys(d)))];
+  for(const r of REGIONS){
+    const d=DEPTHS[r.id];
+    if(!d)throw new Error(`지역 「${r.id}」의 지하 문면이 ui/app.html DEPTHS에 없다 — 시트·들녘·좌판의 밑말이 그 지역에서 «다른 지역의 말»을 하게 된다`);
+    const miss=keys.filter(k=>d[k]===undefined);
+    if(miss.length)throw new Error(`지역 「${r.id}」의 지하 문면에 빈 칸이 있다: ${miss.join(' · ')} — ui/app.html DEPTHS에 그 줄을 적을 것`);
+  }
+}
 const ENTERS={
   labyrinth:()=>{
     const d=DEPTHS[regionAt]; if(!d)return [];   
@@ -12053,8 +12216,12 @@ const ENTERS={
 
 
     const f=fieldCfg();
-    return [{n:d.n,t:d.t,ln:d.ln,go:()=>startRun(false)},
-      ...(f&&lifeField?.hasSidedoor()?[{n:'곁문으로',t:'직행',ln:`들녘에서 찾은 좁은 문 — ${f.sidedoorFloor}층으로 바로. 한 번뿐이다.`,go:()=>startRun(true)}]:[])];
+    
+
+
+
+    return [{n:d.n,t:d.t,ln:d.ln+depthLine(regionAt),go:()=>startRun(false)},
+      ...(f&&lifeField?.hasSidedoor()?[{n:'곁문으로',t:'직행',ln:`들녘에서 찾은 좁은 문 — ${deedOfFloor(f.sidedoorFloor)}층으로 바로. 한 번뿐이다.`,go:()=>startRun(true)}]:[])];
   },
   field:()=>[{n:'성문 밖으로',t:'들녘',ln:'재가 얕게 깔린 들. 걸은 만큼만 보인다.',go:()=>enterField()}],
   tavern:()=>[{n:'안으로 들어간다',t:'소문',ln:'문에서 나온 이야기가 여기서 값이 붙는다.',go:()=>enterTavern()}],
@@ -12433,6 +12600,7 @@ function renderCity(){
     saveGame();   
     break;        
   }
+  $('#city-over').textContent=`도시 · ${CITY.name}`;   
   $('#city-coins').textContent=`${hero.coins??0} 골드`;
   coverLabel($('#city-cover'));
   const here=spotOf(CITY,cityAt)??spotOf(CITY,CITY.start);
@@ -12494,7 +12662,7 @@ function renderCity(){
   if(hero.buff){
     const w=buffWords(hero.buff.mods);
     const hollow=Object.keys(hero.buff.mods??{}).length===0?TEXT.line('city.meal.hollow',textCtx()):null;
-    const say=hollow||`배가 부르다 — ${w||'무언가 달라졌다'}. 미궁 한 번 동안 이어진다.`;
+    const say=hollow||rvoice('mealFull')(w||'무언가 달라졌다');
     gl.insertAdjacentHTML('beforeend',`<div class="card" style="cursor:default;border-color:var(--ember-soft)"><div class="ln">${say}</div></div>`);
   }
   const eatCard=(html,fn)=>{
@@ -12550,7 +12718,7 @@ function renderCity(){
       });
   });
   (hero.aging??[]).forEach(a=>{
-    gl.insertAdjacentHTML('beforeend',`<div class="card" style="cursor:default;opacity:.6"><h3>${a.item?.name??'덮어둔 것'}</h3><div class="ln">덮어두었다 — 미궁을 ${a.runsLeft}번 더 다녀오면 다 삭는다.</div></div>`);
+    gl.insertAdjacentHTML('beforeend',`<div class="card" style="cursor:default;opacity:.6"><h3>${a.item?.name??'덮어둔 것'}</h3><div class="ln">${rvoice('aging')(a.runsLeft)}</div></div>`);
   });
   if(!(hero.goods??[]).length&&!owned.length&&!(hero.aging??[]).length)gl.innerHTML+='<div class="card" style="cursor:default"><div class="ln">가진 게 없다 — 들녘에서 캐 오거나 공방에서 만들어야 한다.</div></div>';
   saveGame();
@@ -12718,9 +12886,11 @@ function settleOuting(alive){
 $('#field-back').onclick=()=>{settleOuting(true);saveGame();enterCity();};
 
 function renderField(note,acts){
+  $('#field-foot-depth').textContent=rvoice('fieldFoot');   
   const mh=effMaxHp();
   $('#field-hp').style.width=(hero.hp/mh*100)+'%';$('#field-hpn').textContent=`${hero.hp}/${mh}`;markHpBar($('#field-hp-bar'),hero.hp/mh);
   $('#field-mp').style.width=(hero.mp/hero.maxMp*100)+'%';$('#field-mpn').textContent=`${hero.mp}/${hero.maxMp}`;
+  {const fn=fieldCfg()?.name;$('#field-over').textContent=fn?`들녘 · ${fn}`:'들녘';}   
   $('#field-explored').textContent=`밟은 자리 ${lifeField.explored()} / ${lifeField.total()}`;
   $('#field-note').textContent=note??'';
   coverLabel($('#field-cover'));
@@ -12785,7 +12955,7 @@ function stepField(x,y){
   let note='', acts=null;
   if(c.type==='gather'){
     const g=lifeField.gather(x,y);
-    if(g.amount<=0)note='이 자리는 이미 캤다 — 미궁을 다녀오면 다시 돋는다.';
+    if(g.amount<=0)note=rvoice('gathered');
     else{
       
 
@@ -12823,8 +12993,8 @@ function stepField(x,y){
       
   }else if(c.type==='sidedoor'){
     const d=lifeField.takeSidedoor(x,y);
-    note=d.granted?`재 밑에 좁은 문이 있다 — 미궁 ${d.startFloor}층으로 바로 이어진다. 도시의 「문」에서 쓸 수 있다.`
-      :d.reason==='shut'?'문틀은 그대로인데 틈이 닫혀 있다. 한 번 지난 문은 미궁이 몇 번 숨을 쉬어야 다시 열린다.'
+    note=d.granted?rvoice('sidedoorFound')(deedOfFloor(d.startFloor))
+      :d.reason==='shut'?rvoice('sidedoorShut')
       :'이미 그 문의 열쇠를 가지고 있다.';
   }else note='재뿐이다. 발자국만 남는다.';
   saveGame();
@@ -13172,7 +13342,7 @@ function renderMarket(){
     card.innerHTML=`<h3>${s.name} <span class="tag">${s.left}/${s.quota}개</span></h3>
       ${pitch?`<div class="ln">${pitch.replace(/\n/g,'<br>')}</div>`:''}
       ${howto?`<div class="ln" style="color:var(--faint)">${howto.replace(/\n/g,'<br>')}</div>`:''}
-      <div class="ln"><b>${s.price}</b>골드${out?' — 오늘 몫은 나갔다. 미궁에 다녀오면 다시 들어온다.':''}</div>
+      <div class="ln"><b>${s.price}</b>골드${out?' — '+rvoice('stockOut'):''}</div>
       <div class="acts" style="grid-template-columns:1fr;margin-top:9px"></div>`;
     const b=document.createElement('button');b.className='act';b.type='button';b.setAttribute('data-k','do');
     b.innerHTML=`<div class="anm" style="text-align:center">${out?'오늘은 없다':poor?'골드가 모자란다':'산다'}</div>`;
@@ -13234,7 +13404,7 @@ function renderMarket(){
     sl.appendChild(card);
   }
   $('#mk-foot').innerHTML=`좌판이 오늘 더 받아주는 양 <b>${lifeMarket.floorLeft()}개</b>.<br>`
-    +`구하는 사람이 바뀌기까지 미궁 <b>${lifeMarket.runsToRefresh()}번</b>. 사람에게 넘기면 좌판보다 훨씬 비싸요.`;
+    +rvoice('marketRefresh')(lifeMarket.runsToRefresh());
   saveGame();
 }
 function sellStock(kind,id,qty){
