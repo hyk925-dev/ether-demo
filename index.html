@@ -512,7 +512,7 @@ h1 em{font-style:normal;color:var(--ember)}
 
 
 <section class="screen" id="s-tavern">
-  <div style="margin-top:26px"><span class="over">주점 · 벌어진 입</span></div>
+  <div style="margin-top:26px"><span class="over" id="tv-over">주점</span></div>
   <h1 style="text-align:left;font-size:22px">누가 무슨 말을<br><em>흘리고 갔는가</em></h1>
   <div class="sect">오늘 도는 말</div>
   <div class="stack" id="tv-rumors"></div>
@@ -756,7 +756,7 @@ h1 em{font-style:normal;color:var(--ember)}
 
 <section class="screen" id="s-craft">
   <div style="margin-top:26px;display:flex;justify-content:space-between;align-items:baseline">
-    <span class="over">공방</span>
+    <span class="over" id="craft-over">공방</span>
     <span style="font-size:11px;color:var(--faint)" id="craft-left"></span>
   </div>
   <h1 style="text-align:left;font-size:22px" id="craft-title">불과 물, <em>그리고 손</em></h1>
@@ -772,7 +772,7 @@ h1 em{font-style:normal;color:var(--ember)}
 
 <section class="screen" id="s-market">
   <div style="margin-top:26px;display:flex;justify-content:space-between;align-items:baseline">
-    <span class="over">시장 거리</span>
+    <span class="over" id="mk-over">시장</span>
     <span style="font-size:12px;color:var(--ember);font-variant-numeric:tabular-nums" id="mk-coins"></span>
   </div>
   <div class="sect">구하는 사람들 <span style="letter-spacing:0;color:var(--faint)">— 가져다주면 좌판보다 훨씬 비싸다</span></div>
@@ -12033,6 +12033,22 @@ function enterCity(){ensureLife();announceGearOpenings();renderCity();show('#s-c
 
 
 
+function spotOver(kind){
+  const nm=spotOf(CITY,cityAt)?.name;
+  if(!nm)return kind;
+  return nm.replace(/^(.+?)\s*「(.+)」$/,'$1 · $2');
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -12180,13 +12196,13 @@ const DEPTHS={
     stockOut:'오늘 몫은 나갔다. 저기에 다녀오면 다시 들어온다.',
     mealFull:w=>`배가 부르다 — ${w}. 저기 한 번 동안 이어진다.`,
     aging:n=>`덮어두었다 — 저기를 ${n}번 더 다녀오면 다 삭는다.`,
-    sidedoorFound:f=>`재 밑에 좁은 문이 있다 — 저기 ${f}층으로 바로 이어진다. 도시의 「문」에서 쓸 수 있다.`,
+    sidedoorFound:f=>`판 굴 하나가 유난히 깊다 — 저기 ${f}층으로 바로 이어진다. 도시의 「능선 자리」에서 쓸 수 있다.`,
     marketRefresh:n=>`구하는 사람이 바뀌기까지 저기 <b>${n}번</b>. 사람에게 넘기면 좌판보다 훨씬 비싸요.`,
     
 
     arrive:'눌린 재가 여기서 끊긴다. 아래는 조용하다.',
     mapFoot:'지나온 길만 남는다 — 저기는 덮여 있었다',
-    sidedoorShut:'문틀은 그대로인데 틈이 닫혀 있다. 한 번 지난 문은 저기를 몇 번 더 다녀와야 다시 열린다.'},
+    sidedoorShut:'굴 어귀는 그대로인데 안쪽이 메워졌다. 한 번 지난 굴은 저기를 몇 번 더 다녀와야 다시 열린다.'},
 };
 
 
@@ -12795,6 +12811,7 @@ $('#field-cover').onclick=()=>coverNightHere(()=>coverLabel($('#field-cover')));
 
 
 function enterTavern(){
+  $('#tv-over').textContent=spotOver('주점');   
   const first=arriveAt('in.tavern');   
   const said=TEXT.rotate('city.tavern.rumor',textCtx(),2);
   const el=$('#tv-rumors');el.innerHTML='';
@@ -13110,6 +13127,7 @@ function renderCraft(){
   
 
 
+  $('#craft-over').textContent=spotOver('공방');   
   $('#craft-foot').textContent=TEXT.line('guide.craft.foot',textCtx())??'';
   const body=$('#craft-body');body.innerHTML='';
   const main=$('#craft-main');main.style.display='none';main.onclick=null;main.disabled=false;
@@ -13307,6 +13325,7 @@ function renderCraft(){
 function enterMarket(){ensureLife();const first=arriveAt('in.market');renderMarket();show('#s-market');if(first)toast(first);}
 $('#mk-back').onclick=()=>{saveGame();enterCity();};
 function renderMarket(){
+  $('#mk-over').textContent=spotOver('시장');   
   $('#mk-coins').textContent=`${hero.coins??0} 골드`;
   const ol=$('#mk-orders');ol.innerHTML='';
   for(const o of lifeMarket.orders()){
