@@ -2320,6 +2320,50 @@ const  applySoulStat = (base, souls = [], key) => {
  
 const  soulStatBonus = (base, souls = [], key) => applySoulStat(base, souls, key) - base;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const  SKILL_STAT_CAP = 2.0;    
+const  SKILL_STAT_HALF = 30;    
+const  BASIC_ATTACK_STAT = '힘'; 
+const  statShare = (x, cap = SKILL_STAT_CAP, half = SKILL_STAT_HALF) => (x > 0 ? (cap * x) / (x + half) : 0);
+ 
+function  fiveOf(souls = [], map) {
+  const five = {};
+  if (!map?.channel) return five;
+  for (const [ko, ch] of Object.entries(map.channel)) five[ko] = souls.reduce((a, s) => a + (s.stats?.[ch] ?? 0), 0);
+  return five;
+}
+ 
+function  skillShares(soul, map) {
+  const raw = {};
+  for (const t of soul?.tags ?? []) for (const [s, w] of Object.entries(map?.tags?.[t] ?? {})) raw[s] = (raw[s] ?? 0) + w;
+  const max = Math.max(0, ...Object.values(raw));
+  if (!max) return {};
+  const top = Object.keys(raw).filter((s) => raw[s] === max);
+  return Object.fromEntries(top.map((s) => [s, 1 / top.length]));
+}
+ 
+const  skillMul = (five, shares) =>
+  1 + Object.entries(shares ?? {}).reduce((a, [s, sh]) => a + sh * statShare(five?.[s] ?? 0), 0);
+
 function  makeRegistry(soulList, { statMap = null } = {}) {
   const byId = new Map();
   for (const s0 of soulList) {
@@ -4114,6 +4158,10 @@ function  battleMods(c, traits = [], { runToken = null, refusals = [], halves = 
     affixStats: affixStats(c, statMap),
     
 
+    five: fiveOf(c.souls, statMap),
+    skillShares: Object.fromEntries((c.souls ?? []).map((s) => [s.id, skillShares(s, statMap)])),
+    
+
 
 
     gearStats: gearStats(c),
@@ -4543,7 +4591,14 @@ function  createBattle({ souls, resonances, fusions = [], enemy, enemies, format
   
 
 
-  const rawAtk = () => 6 + p.weaponAtk;
+  
+
+
+
+  const five = mods.five ?? null;
+  const shares = mods.skillShares ?? {};
+  const mulOf = (sh) => (five ? skillMul(five, sh) : 1);
+  const rawAtk = () => Math.round((6 + p.weaponAtk) * mulOf({ [BASIC_ATTACK_STAT]: 1 }));
   
 
 
@@ -4624,9 +4679,10 @@ function  createBattle({ souls, resonances, fusions = [], enemy, enemies, format
     : null;
 
   
-  function dealToEnemy(base, { isActive = false } = {}) {
+  function dealToEnemy(base, { isActive = false, statMul = 1 } = {}) {
     const e = cur();
-    let d = base;
+    
+    let d = statMul === 1 ? base : Math.round(base * statMul);
     if (isActive) d = Math.round(d * resonanceValue(reso, 'active_damage_mul'));
     if (e.hp <= e.maxHp * 0.3) d = Math.round(d * resonanceValue(reso, 'execute_damage_mul'));
     d = hooks.fire('player_deal', hookCtx({ damage: d })).damage; 
@@ -4649,7 +4705,10 @@ function  createBattle({ souls, resonances, fusions = [], enemy, enemies, format
   const buffTurns = (t) => t + resonanceSum(reso, 'buff_turns_add');
 
   const FX = {
-    damage:        (fx) => { for (let i = 0; i < (fx.times ?? 1); i++) if (!over) dealToEnemy(fx.amount, { isActive: true }); },
+    damage:        (fx, _name, soul) => { 
+      const statMul = mulOf(shares[soul?.id] ?? {});
+      for (let i = 0; i < (fx.times ?? 1); i++) if (!over) dealToEnemy(fx.amount, { isActive: true, statMul });
+    },
     
 
 
@@ -4738,7 +4797,7 @@ function  createBattle({ souls, resonances, fusions = [], enemy, enemies, format
       emit('soul_active', { soulId: s.id, name: s.active.name, mpCost, ops: s.active.effects.map((f) => f.op), fusion: entry.fusion, grade: s.grade });
       
       
-      for (const fx of s.active.effects) FX[fx.op](fx, s.active.name);
+      for (const fx of s.active.effects) FX[fx.op](fx, s.active.name, s); 
       hooks.fire('soul_activated', hookCtx({ soulId: s.id }));
       note(shadow.observe(fx0(s) === 'seal_heavy' ? 'seal' : 'soul_active'));
     } else if (action.type === 'attack') {
@@ -10777,8 +10836,12 @@ function soulNums(s){
 
 
   const out=[];
+  
+
+
+  const statMul=hero?skillMul(fiveOf(hero.souls??[],DATA_STAT_MAP),skillShares(s,DATA_STAT_MAP)):1;
   for(const fx of s.active?.effects??[]){
-    if(fx.op==='damage')        out.push(`피해 ${fx.amount}${(fx.times??1)>1?`×${fx.times}`:''}`);
+    if(fx.op==='damage')        out.push(`피해 ${Math.round(fx.amount*statMul)}${(fx.times??1)>1?`×${fx.times}`:''}`);
     else if(fx.op==='crit_up')  out.push(`치명 +${fx.add} ${bt(fx.turns)}턴`);
     else if(fx.op==='stat_buff')out.push(`${FX_WORD[fx.stat]??fx.stat} +${fx.add} ${bt(fx.turns)}턴`);
     else if(fx.op==='weaken')   out.push(`약화 ${fx.amount} ${1+resonanceSum(reso,'weaken_turns_add')}턴`);
@@ -11611,7 +11674,7 @@ function startLabBattle(res){
   foes=res.enemies??[foe]; aimAt=0;
   battle=createBattle({souls:hero.souls,resonances:DATA_RESONANCES,fusions:liveFusions(),combat:COMBAT_CFG,
     ...(res.enemies?{enemies:res.enemies,formation:res.formation}:{enemy:foe}),
-    seed:res.battleSeed,mods:battleMods(hero,TRAITS,{runToken:runSeed,refusals:DATA_REFUSALS,halves,pairs:PAIRS,resonances:DATA_RESONANCES})});
+    seed:res.battleSeed,mods:battleMods(hero,TRAITS,{runToken:runSeed,refusals:DATA_REFUSALS,halves,pairs:PAIRS,resonances:DATA_RESONANCES,statMap:DATA_STAT_MAP})});
   runStats.battles++;lastLogN=0;
   $('#blog').innerHTML='';
   logLine('sys',labNode.type==='boss'?'길이 끝났다. 어둠이 이쪽을 본다.':labNode.type==='elite'?'공기가 무겁다 — 큰 것이 나선다.':'어둠 속에서 무언가 나선다.');
@@ -13124,7 +13187,7 @@ function fieldFight(enemyId){
   
   foe={...DATA_ENEMIES.find(e=>e.id===enemyId)};foes=[foe];aimAt=0;battleCtx='field';lastLogN=0;
   battle=createBattle({souls:hero.souls,resonances:DATA_RESONANCES,fusions:liveFusions(),enemy:foe,combat:COMBAT_CFG,
-    seed:(Math.floor(Math.random()*1e9)||1),mods:battleMods(hero,TRAITS,{runToken:null,refusals:DATA_REFUSALS,halves,pairs:PAIRS,resonances:DATA_RESONANCES})});
+    seed:(Math.floor(Math.random()*1e9)||1),mods:battleMods(hero,TRAITS,{runToken:null,refusals:DATA_REFUSALS,halves,pairs:PAIRS,resonances:DATA_RESONANCES,statMap:DATA_STAT_MAP})});
   $('#blog').innerHTML='';
   logLine('sys','재 위에서 마주쳤다.');
   $('#e-name').textContent=foe.name;
