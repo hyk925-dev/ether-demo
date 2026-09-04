@@ -13420,6 +13420,15 @@ function renderCraft(){
  
 function enterMarket(){ensureLife();const first=arriveAt('in.market');renderMarket();show('#s-market');if(first)toast(first);}
 $('#mk-back').onclick=()=>{saveGame();enterCity();};
+
+
+const TEN_WORDS=['영','하나','둘','셋','넷','다섯','여섯','일곱','여덟','아홉','열'];
+const tenthWord=r=>{const n=Math.round(r*10);
+  if(!(n>=1&&n<=10))throw new Error(`시장 비율 ${r}을 열 단위 말로 못 옮긴다 — data/market.m1.json 값이 0.1~1.0 밖이다`);
+  return n===10?'제값':`열에 ${TEN_WORDS[n]}`;};
+const mulWord=m=>{if(!(m>=1.5))throw new Error(`buyMul ${m}이 1.5 미만 — validateMarketConfig가 이미 막았어야 한다`);
+  return {2:'두 배',3:'세 배',4:'네 배'}[m]??`${m}배`;};
+const bandLine=()=>`상인의 셈 — 내 물건은 제값의 ${tenthWord(MARKET_CFG.goodFloorRate)}만 쳐주고(요리는 ${tenthWord(MARKET_CFG.dishFloorRate)}), 좌판의 것은 내게 쳐줄 값의 ${mulWord(MARKET_CFG.buyMul)}를 받는다.`;
 function renderMarket(){
   $('#mk-over').textContent=spotOver('시장');   
   $('#mk-coins').textContent=`${hero.coins??0} 골드`;
@@ -13518,7 +13527,13 @@ function renderMarket(){
     });
     sl.appendChild(card);
   }
-  $('#mk-foot').innerHTML=`좌판이 오늘 더 받아주는 양 <b>${lifeMarket.floorLeft()}개</b>.<br>`
+  
+
+
+
+
+
+  $('#mk-foot').innerHTML=bandLine()+`<br>좌판이 오늘 더 받아주는 양 <b>${lifeMarket.floorLeft()}개</b>.<br>`
     +rvoice('marketRefresh')(lifeMarket.runsToRefresh());
   saveGame();
 }
