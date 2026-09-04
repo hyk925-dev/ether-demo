@@ -2360,6 +2360,20 @@ function  skillShares(soul, map) {
   const top = Object.keys(raw).filter((s) => raw[s] === max);
   return Object.fromEntries(top.map((s) => [s, 1 / top.length]));
 }
+
+
+
+
+
+function  effectShares(soul, map) {
+  const raw = {};
+  for (const t of soul?.tags ?? []) for (const [s, w] of Object.entries(map?.tags?.[t] ?? {})) raw[s] = (raw[s] ?? 0) + w;
+  const ranks = [...new Set(Object.values(raw))].sort((a, b) => b - a);
+  if (!ranks.length) return {};
+  const pick = ranks[1] ?? ranks[0];
+  const top = Object.keys(raw).filter((s) => raw[s] === pick);
+  return Object.fromEntries(top.map((s) => [s, 1 / top.length]));
+}
  
 const  skillMul = (five, shares) =>
   1 + Object.entries(shares ?? {}).reduce((a, [s, sh]) => a + sh * statShare(five?.[s] ?? 0), 0);
@@ -4160,6 +4174,7 @@ function  battleMods(c, traits = [], { runToken = null, refusals = [], halves = 
 
     five: fiveOf(c.souls, statMap),
     skillShares: Object.fromEntries((c.souls ?? []).map((s) => [s.id, skillShares(s, statMap)])),
+    effectShares: Object.fromEntries((c.souls ?? []).map((s) => [s.id, effectShares(s, statMap)])), 
     
 
 
@@ -4597,7 +4612,9 @@ function  createBattle({ souls, resonances, fusions = [], enemy, enemies, format
 
   const five = mods.five ?? null;
   const shares = mods.skillShares ?? {};
+  const effShares = mods.effectShares ?? {}; 
   const mulOf = (sh) => (five ? skillMul(five, sh) : 1);
+  const effMulOf = (soul) => mulOf(effShares[soul?.id] ?? {});
   const rawAtk = () => Math.round((6 + p.weaponAtk) * mulOf({ [BASIC_ATTACK_STAT]: 1 }));
   
 
@@ -4723,7 +4740,8 @@ function  createBattle({ souls, resonances, fusions = [], enemy, enemies, format
 
 
 
-    guard_counter: (fx) => { p.rootCounter = fx.counter; p.guard = true; p.guardReduce = fx.reduce ?? 0.5; emit('rooted', { counter: fx.counter }); },
+    guard_counter: (fx, _name, soul) => { const counter = Math.round(fx.counter * effMulOf(soul)); 
+      p.rootCounter = counter; p.guard = true; p.guardReduce = fx.reduce ?? 0.5; emit('rooted', { counter }); },
     
 
 
@@ -4736,7 +4754,7 @@ function  createBattle({ souls, resonances, fusions = [], enemy, enemies, format
 
 
 
-    weaken:        (fx, name) => { const e = cur(); e.weaken = fx.amount; e.weakenTurns = 1 + resonanceSum(reso, 'weaken_turns_add'); e.weakenBy = name; },
+    weaken:        (fx, name, soul) => { const e = cur(); e.weaken = Math.round(fx.amount * effMulOf(soul)); e.weakenTurns = 1 + resonanceSum(reso, 'weaken_turns_add'); e.weakenBy = name; }, 
     seal_heavy:    (fx, name) => { const e = cur(); e.sealed = true; e.sealedBy = name; },
     
 
@@ -10844,12 +10862,13 @@ function soulNums(s){
 
 
   const statMul=hero?skillMul(fiveOf(hero.souls??[],DATA_STAT_MAP),skillShares(s,DATA_STAT_MAP)):1;
+  const effMul=hero?skillMul(fiveOf(hero.souls??[],DATA_STAT_MAP),effectShares(s,DATA_STAT_MAP)):1; 
   for(const fx of s.active?.effects??[]){
     if(fx.op==='damage')        out.push(`피해 ${Math.round(fx.amount*statMul)}${(fx.times??1)>1?`×${fx.times}`:''}`);
     else if(fx.op==='crit_up')  out.push(`치명 +${fx.add} ${bt(fx.turns)}턴`);
     else if(fx.op==='stat_buff')out.push(`${FX_WORD[fx.stat]??fx.stat} +${fx.add} ${bt(fx.turns)}턴`);
-    else if(fx.op==='weaken')   out.push(`약화 ${fx.amount} ${1+resonanceSum(reso,'weaken_turns_add')}턴`);
-    else if(fx.op==='guard_counter') out.push(`되받기 ${fx.counter}`);
+    else if(fx.op==='weaken')   out.push(`약화 ${Math.round(fx.amount*effMul)} ${1+resonanceSum(reso,'weaken_turns_add')}턴`);
+    else if(fx.op==='guard_counter') out.push(`되받기 ${Math.round(fx.counter*effMul)}`);
     
   }
   
